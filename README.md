@@ -8,7 +8,73 @@
 
 ## Overview
 
-The **Developer Contribution Visualizer** is a desktop web application built with Python and Streamlit that analyzes local Git repositories. It parses commit history, extracts contribution metadata, and presents developer activity through interactive charts, metric summaries, and detailed tables.
+The **Developer Contribution Visualizer** is a Python and Streamlit desktop web application that analyzes local Git repositories. It turns raw commit histories into structured developer contribution metrics, interactive visual charts, and filterable tables.
+
+---
+
+## Assessment 3: Feature Implementation
+
+### 1. Crucial Feature Implemented
+**End-to-End Developer Contribution Analysis & Reactive Developer Filtering**
+
+In Assessment 3, the developer contribution analysis and filtering capability was developed into a near-complete, production-grade feature connecting the presentation layer, analytical business logic, and automated tests.
+
+---
+
+### 2. How the Feature Works
+
+1. **Repository Ingestion & Validation**:
+   - The user inputs any local Git directory path into the sidebar.
+   - The backend validates that the path exists, is a directory, and contains a readable Git repository before attempting to parse commit objects.
+   - Empty repositories (zero commits) and invalid paths are caught gracefully with friendly alerts instead of application crashes.
+
+2. **Contribution Aggregation**:
+   - Commit history is processed using `GitPython` to extract author identities, commit hashes, dates, messages, file count, insertions (additions), and deletions.
+   - Metrics are aggregated by author and by date using `pandas`.
+
+3. **Reactive Contributor Filtering**:
+   - The sidebar dynamically populates a dropdown with all unique contributors found in the repository, along with an **"All developers"** option.
+   - Selecting an individual contributor immediately updates all components across the dashboard:
+     - **Profile Banner**: Displays the contributor's name, commit count, percentage share of total repository commits, active days, and active date span.
+     - **KPI Metric Cards**: Displays individual commits, total additions, total deletions, and files changed with contextual indicators (net lines added, active days).
+     - **Code Impact Chart**: Displays a dedicated comparison bar chart of Lines Added vs. Lines Deleted for that contributor.
+     - **Activity Over Time Chart**: Plots the contributor's specific timeline of commits, additions, and deletions over time.
+     - **Contribution Summary Table**: Isolates the contributor's aggregated metrics.
+     - **Commit Details Table**: Lists only commits authored by that specific contributor, sorted in reverse-chronological order.
+
+4. **All-Developers View**:
+   - Selecting "All developers" preserves the global view, showing team-wide commit rankings, overall repo velocity, and full commit histories.
+
+---
+
+### 3. Changes in Business Logic (`core/git_analyzer.py`)
+
+- **Edge-Case Validation (`validate_repository`)**:
+  - Validates against empty strings, whitespace, and non-directories before invoking GitPython constructors.
+- **Empty & Headless Repository Safety (`analyze_repository`)**:
+  - Safely checks `repo.head.is_valid()` and handles `GitCommandError` and `ValueError` for newly initialized repositories with zero commits, returning structured empty DataFrames rather than crashing.
+- **Author Discovery (`get_developer_list`)**:
+  - Added helper to extract a clean, sorted list of unique contributor names.
+- **Detailed Contributor Statistics (`get_developer_stats`)**:
+  - Added helper calculating total commits, additions, deletions, changed files, net code volume (`additions - deletions`), count of unique active days, first commit date, and last commit date.
+- **Robust Filtering (`filter_by_developer`)**:
+  - Handles string whitespace trimming, cleanly falls back to the full dataset when "All developers" is selected, and produces a valid empty schema when filtering for non-existent authors.
+
+---
+
+### 4. Changes in User Interface (`app/main.py`)
+
+- **Error Resilience & State Reset**:
+  - Added explicit session state cleanup and a **Reset** button to prevent previous analysis data from persisting when an invalid path or new repository is analyzed.
+- **Viva-Ready Contributor Filter**:
+  - Integrated the contributor dropdown in the sidebar with live repository metadata (total contributors count, total commit count).
+- **Contributor Profile Header**:
+  - Highlights the selected contributor's role with a percentage calculation (`X% of total repo commits`) and active timeframe.
+- **Adaptive Visualizations**:
+  - **Left Chart**: Dynamically renders "Commits by Developer" in team view, and shifts to "Code Impact: Lines Added vs Deleted" with distinct color styling (`#10b981` green for additions, `#ef4444` red for deletions) in contributor view.
+  - **Right Chart**: Plots date-based project velocity, responding directly to the developer filter.
+- **Formatted Tables**:
+  - Standardized column headers and formatted dates to ISO `YYYY-MM-DD` strings for readability during demonstrations.
 
 ---
 
@@ -17,70 +83,27 @@ The **Developer Contribution Visualizer** is a desktop web application built wit
 ```text
 Developer_Contribution_Visualizer/
 ├── app/
-│   └── main.py                   # Streamlit dashboard UI and visualization layout
+│   └── main.py                   # Streamlit UI: layout, filtering controls, charts, and tables
 ├── core/
 │   ├── __init__.py               # Core package initializer
-│   └── git_analyzer.py           # Git history extraction, validation, and data aggregation logic
+│   └── git_analyzer.py           # Business logic: extraction, aggregation, filtering, stats helpers
 ├── output/
-│   └── Project assessment-2 Deliverable-1.pdf # Deliverable documentation and report
+│   └── Project assessment-2 Deliverable-1.pdf # Assessment documentation and report
 ├── tests/
-│   └── test_git_analyzer.py      # Automated unit tests for Git analyzer functions
-├── .gitignore                    # Git ignore file for Python, virtual environments, and caches
-├── Assessment-2.md               # Assessment specifications, rubric alignment, and scope details
-├── README.md                     # Project documentation and setup guide
-└── requirements.txt              # Production and testing dependencies
+│   └── test_git_analyzer.py      # Automated pytest test suite
+├── .gitignore                    # Python, virtualenv, and IDE ignore rules
+├── Assessment-2.md               # Deliverable specifications
+├── README.md                     # Complete project and feature documentation
+└── requirements.txt              # Project dependencies
 ```
 
-### Component Roles
-
-- **`app/main.py`**: Presentation layer built using Streamlit and Plotly. Handles user input, sidebar controls, metric cards, charts, and table presentation.
-- **`core/git_analyzer.py`**: Business logic layer. Uses `GitPython` to read repository commits and `pandas` to structure and aggregate author metrics and timeline trends. Separated from the UI for independent testability.
-- **`tests/test_git_analyzer.py`**: Test suite using `pytest`. Uses temporary in-memory/on-disk repositories created via `tmp_path` to test validation, metric aggregation, and developer filtering.
-- **`requirements.txt`**: Pins dependencies to stable, compatible versions (`streamlit`, `gitpython`, `pandas`, `plotly`, `pytest`).
-
 ---
 
-## Dashboard Metrics & Features
+## How to Run the Application
 
-When analyzing a repository, the dashboard calculates and displays:
-
-### 1. Summary Metric Cards
-- **Commits**: Total number of commits analyzed (overall or for the selected developer).
-- **Lines Added**: Total number of lines inserted across commits (`insertions`).
-- **Lines Deleted**: Total number of lines removed across commits (`deletions`).
-- **Files Changed**: Cumulative count of files modified across commits.
-
-### 2. Interactive Charts
-- **Commits by Developer (Bar Chart)**: Compares total commit contributions across all contributors.
-- **Activity Over Time (Line Chart)**: Tracks historical project velocity over dates, plotting commits, additions, and deletions simultaneously with interactive hover tooltips.
-
-### 3. Data Tables
-- **Contribution Summary Table**: Aggregated developer metrics displaying author name, total commits, files changed, total additions, and total deletions.
-- **Commit Details Table**: Reverse-chronological table of commits displaying commit hash (short 8-character SHA), author name, date, commit message headline, files changed, additions, and deletions.
-
-### 4. Interactive Filtering & Validation
-- **Path Input**: Enter any local Git repository path to analyze.
-- **Repository Validation**: Validates that the provided path exists, is a directory, and contains a valid Git repository; displays clear error messages for invalid paths.
-- **Developer Filter**: Sidebar dropdown allowing users to view metrics for "All developers" or filter all KPIs, charts, and tables for an individual developer.
-
----
-
-## Prerequisites
-
-- **Python**: Version 3.10 or higher
-- **Git**: Installed and available in your system `PATH`
-
----
-
-## Setup Instructions
-
-### 1. Create a Virtual Environment
-
-Open PowerShell (Windows) or Terminal (Linux/macOS) in the project directory:
-
-```bash
-python -m venv .venv
-```
+### 1. Prerequisites
+- **Python**: Version 3.10 or higher (Python 3.11 recommended)
+- **Git**: Installed and accessible in your system terminal
 
 ### 2. Activate the Virtual Environment
 
@@ -88,7 +111,6 @@ python -m venv .venv
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
-*(If PowerShell restricts script execution, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned` first)*
 
 **Windows (Command Prompt):**
 ```cmd
@@ -101,84 +123,94 @@ source .venv/bin/activate
 ```
 
 ### 3. Install Dependencies
-
 ```bash
-python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
----
-
-## How to Run the Application
-
-Once dependencies are installed and the virtual environment is active:
-
-```bash
+### 4. Start the Dashboard
+```powershell
 streamlit run app/main.py
 ```
 
-1. Streamlit will launch the local web server and open your browser automatically at:
-   ```text
-   http://localhost:8501
-   ```
-2. In the sidebar on the left:
-   - Enter the full path of any local Git repository (for example: `D:\CLOUD PRO\CBCA321-PROJECT-ARNAV` or your current repo path).
-   - Click **Analyze Repository**.
-3. Use the **Developer filter** in the sidebar to switch between overall repository activity and developer-specific stats.
+Open your browser at `http://localhost:8501`. Enter any local Git repository path (e.g. `D:\CLOUD PRO\CBCA321-PROJECT-ARNAV`) and click **Analyze**.
 
 ---
 
-## How to Run the Tests
+## How to Run the Automated Tests
 
-Automated unit tests verify the analysis logic independently from the UI without modifying any real repositories.
+Automated tests run against dynamically generated Git repositories created in temporary folders (`tmp_path`), testing multi-author history without modifying any user repositories.
 
-To run the test suite:
+Run the test suite with verbose output:
 
-```bash
-pytest -q
+```powershell
+.\.venv\Scripts\python.exe -m pytest -v
 ```
 
-Or for verbose output with individual test names:
+### Test Suite Results:
 
-```bash
-pytest -v
+```text
+tests/test_git_analyzer.py::test_validate_repository PASSED              [ 12%]
+tests/test_git_analyzer.py::test_validate_repository_edge_cases PASSED   [ 25%]
+tests/test_git_analyzer.py::test_analysis PASSED                         [ 37%]
+tests/test_git_analyzer.py::test_analysis_empty_repo PASSED              [ 50%]
+tests/test_git_analyzer.py::test_analysis_invalid_path PASSED            [ 62%]
+tests/test_git_analyzer.py::test_filter PASSED                           [ 75%]
+tests/test_git_analyzer.py::test_multi_author_analysis_and_filtering PASSED [ 87%]
+tests/test_git_analyzer.py::test_get_developer_stats PASSED              [100%]
+
+============================== 8 passed in 6.27s ==============================
 ```
 
-### Test Coverage Summary:
-- **`test_validate_repository`**: Verifies that valid Git repositories are recognized and non-existent/invalid directories return `False`.
-- **`test_analysis`**: Verifies accurate commit counting and developer aggregation from repository commit logs.
-- **`test_filter`**: Verifies that developer filtering isolates the selected contributor's records correctly.
+### What Each Test Verifies:
+1. `test_validate_repository`: Verifies valid vs invalid repository paths.
+2. `test_validate_repository_edge_cases`: Verifies blank strings, whitespace, and non-directory files return `False`.
+3. `test_analysis`: Verifies commit extraction and metric aggregation.
+4. `test_analysis_empty_repo`: Verifies that initialized Git repos with zero commits return empty DataFrames safely.
+5. `test_analysis_invalid_path`: Verifies informative `ValueError` exceptions for missing directories.
+6. `test_filter`: Verifies developer filtering on a single-author repo.
+7. `test_multi_author_analysis_and_filtering`: Verifies multi-author extraction (`Alice` and `Bob`), individual author filtering, `All developers` fallback, and non-existent author safety.
+8. `test_get_developer_stats`: Verifies calculation of commits, additions, deletions, changed files, active days, and date ranges.
 
 ---
 
 ## Architecture
 
 ```text
-┌───────────────────────────────┐
-│     Streamlit Dashboard       │  (app/main.py)
-│    • Sidebar inputs & filter  │
-│    • KPI metric cards         │
-│    • Plotly charts & tables   │
-└───────────────┬───────────────┘
-                │ calls analyze_repository() / filter_by_developer()
-                ▼
-┌───────────────────────────────┐
-│      Git Analyzer Logic       │  (core/git_analyzer.py)
-│    • Repo validation          │
-│    • Commit iteration         │
-│    • Pandas aggregation       │
-└───────────────┬───────────────┘
-                │ reads via GitPython
-                ▼
-┌───────────────────────────────┐
-│     Local Git Repository      │  (.git metadata & commit objects)
-└───────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                   Streamlit Dashboard                  │ (app/main.py)
+│  • Sidebar: Path input, Validation, Contributor Filter │
+│  • Contributor Profile & Share Banner                  │
+│  • 4 KPI Cards: Commits, Additions, Deletions, Files   │
+│  • Dynamic Charts: Impact & Timeline Velocity          │
+│  • Filtered Data Tables: Summary & Commit Details      │
+└───────────────────────────┬────────────────────────────┘
+                            │
+               calls analyze_repository()
+               calls filter_by_developer()
+               calls get_developer_stats()
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                   Git Analyzer Logic                   │ (core/git_analyzer.py)
+│  • Repository Path Validation                          │
+│  • Git Commit & Diff Stats Extraction                  │
+│  • Multi-author Aggregation & Filtering Logic          │
+│  • Metric Computation (Net lines, Active days, Dates)  │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                   reads via GitPython
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                  Local Git Repository                  │ (.git metadata)
+└────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Key Learnings
 
-1. **Structured Git Extraction**: Git commits and diff stats can be converted directly into structured tabular data using `GitPython` and `pandas`.
-2. **Layered Architecture**: Decoupling data extraction and aggregation logic from the Streamlit UI makes the core analytical routines testable with automated pytest fixtures.
-3. **Descriptive Analytics**: Aggregating raw commit data into developer summaries and time series helps visualize team activity and code churn effectively.
+1. **Defensive API Contracts**: Git repositories in the wild have edge cases such as newly initialized empty repositories, bare repositories, and headless branches. Defensive error handling in the data extraction layer is essential to keep web interfaces responsive and stable.
+2. **Deterministic Multi-Author Fixtures**: Using `git.Actor` in pytest fixtures enables repeatable multi-developer testing of complex filtering and metric computations without external network dependencies.
+3. **Cohesive UI Reactivity**: A filtering feature is only complete when all analytical components—KPIs, comparison charts, time series, and raw logs—consistently reflect the selected filter criteria.
+4. **Separation of Presentation and Business Logic**: Keeping computation in `core/` and visualization in `app/` allows 100% of the analytical routines to be tested automatically through standard CI/CD frameworks.
